@@ -1,0 +1,158 @@
+---
+title: "Untitled"
+author: "Aaila"
+date: '2019-02-14'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+#install packages
+```{r}
+#install.packages("ggplot2")
+library(ggplot2)
+
+#install.packages("tidyr")
+library(tidyr)
+
+#install.packages("purrr")
+library(purrr)
+
+#install.packages("corrplot")
+library(corrplot)
+
+#install.packages("DMwR")
+library(DMwR)
+```
+
+# read data into a dataframe and view structure
+```{r cars}
+#data1 <- read.csv(file.choose(), header = TRUE)
+#str(data1)
+
+housing <- read.csv("housing.csv", header=TRUE, sep=",")
+
+View(housing)
+nrow(housing)
+ncol(housing)
+str(housing)
+sum(is.na(housing))
+
+housing_numeric <- housing[,0:9]
+#head(housing_numeric)
+
+#print range of each column
+#for (i in 1:ncol(housing_numeric)){
+#  r<-range(housing_numeric[i])
+#  print(r)
+#}
+summary(housing)
+
+table(housing$ocean_proximity)
+
+```
+#fixing  missing values using KNN imputation
+```{r}
+#row index for total_bedrooms having missing values
+na.index <- which(is.na(housing$total_bedrooms))
+na.index
+
+housing_KnnImpute <- knnImputation(housing, k = 5)
+#confirm if all missing values have been replaced
+sum(is.na(housing_KnnImpute))
+#housing_KnnImpute[!complete.cases(housing_KnnImpute),]
+
+#converts the number of bedrooms calculated from real to integer 
+housing_KnnImpute$total_bedrooms <- as.integer(housing_KnnImpute$total_bedrooms)
+
+#print rows where the missing values have been replaced
+housing_KnnImpute[na.index,]
+
+#boxplot(housing_KnnImpute[,names(housing_KnnImpute) != 'median_house_value'])
+#boxplot(housing_KnnImpute$total_rooms)
+#?knn.impute
+#?impute.knn
+```
+
+# fix total_rooms, total_bedrooms and population columns to represent per house averages
+```{r}
+#rooms per household
+housing_KnnImpute$mean_rooms <- housing_KnnImpute$total_rooms / housing_KnnImpute$households
+#bedrooms per household
+housing_KnnImpute$mean_bedrooms <- housing_KnnImpute$total_bedrooms/housing_KnnImpute$total_rooms
+#
+housing_KnnImpute$people_per_household <- housing_KnnImpute$population/housing_KnnImpute$households
+names(housing_KnnImpute)
+
+#housing_KnnImpute <- subset(housing_KnnImpute, select = (-c(total_rooms,total_bedrooms,population)))
+
+```
+#change categorical column "ocean_proximity" to factor
+```{r}
+is.factor(housing_KnnImpute$ocean_proximity)
+housing_KnnImpute$ocean_proximity <- as.numeric(housing_KnnImpute$ocean_proximity)
+# levels = <1H OCEAN     INLAND     ISLAND   NEAR BAY NEAR OCEAN 
+# labels =      1           2         3       4           5
+table(housing_KnnImpute$ocean_proximity)
+table(housing$ocean_proximity)
+```
+
+
+# create histograms of numeric variables to see distribution
+```{r}
+housing_KnnImpute %>%
+  keep(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(value)) +
+    facet_wrap(~ key, scales = "free") +
+    geom_histogram()
+
+housing %>%
+  keep(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(value)) +
+    facet_wrap(~ key, scales = "free") +
+    geom_histogram()
+
+str(housing_KnnImpute$mean_bedrooms)
+#hist(housing_KnnImpute$mean_rooms, breaks = 6)
+
+pairs(housing_KnnImpute[-10])
+#for (col in 1:ncol(housing)) {
+#    hist(housing[,col])
+#}
+```
+
+#plot latitude longitude
+```{r}
+plot(housing$longitude, housing$latitude, type = "p", col = "dark red")
+```
+#view correlations
+```{r}
+#housing[!complete.cases(housing),]
+#complete.cases to filter out rows containing NA's
+housing_KnnImpute[complete.cases(housing),] %>% keep(is.numeric)  %>% cor() %>% round(2) %>% corrplot(method="circle")
+?dummyVars
+
+```
+#Boxplots to see outliers
+```{r}
+boxplot(housing[-9])
+boxplot.stats(housing_KnnImpute$mean_rooms)
+
+housing.oceanprox.tab <- table(housing$ocean_proximity)
+housing.oceanprox.tab
+
+housing.totalrooms.tab <- table(housing$total_rooms)
+housing.totalrooms.tab
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
