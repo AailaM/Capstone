@@ -30,6 +30,12 @@ library(corrplot)
 
 #install.packages("DMwR")
 library(DMwR)
+
+#install.packages("rpart")
+library(rpart)
+
+#install.packages("randomForest")
+library(randomForest)
 ```
 
 # read data into a dataframe and view structure
@@ -91,7 +97,7 @@ housing_KnnImpute$mean_bedrooms <- housing_KnnImpute$total_bedrooms/housing_KnnI
 housing_KnnImpute$people_per_household <- housing_KnnImpute$population/housing_KnnImpute$households
 names(housing_KnnImpute)
 
-#housing_KnnImpute <- subset(housing_KnnImpute, select = (-c(total_rooms,total_bedrooms,population)))
+housing_KnnImpute <- subset(housing_KnnImpute, select = (-c(total_rooms,total_bedrooms,population)))
 
 ```
 #change categorical column "ocean_proximity" to factor
@@ -103,10 +109,26 @@ housing_KnnImpute$ocean_proximity <- as.numeric(housing_KnnImpute$ocean_proximit
 table(housing_KnnImpute$ocean_proximity)
 table(housing$ocean_proximity)
 ```
-
+#normalize data
+```{r}
+names(housing_KnnImpute)
+h1 <- as.data.frame(scale(housing_KnnImpute[1:5]))
+h2 <- as.data.frame(scale(housing_KnnImpute[8:10]))
+h3 <- as.data.frame(housing_KnnImpute[7:6])
+housing_clean <- cbind(h1,h2,h3)
+class(housing_clean)
+head(housing_clean)
+```
 
 # create histograms of numeric variables to see distribution
 ```{r}
+housing_clean %>%
+  keep(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(value)) +
+    facet_wrap(~ key, scales = "free") +
+    geom_histogram()
+
 housing_KnnImpute %>%
   keep(is.numeric) %>% 
   gather() %>% 
@@ -136,9 +158,10 @@ plot(housing$longitude, housing$latitude, type = "p", col = "dark red")
 ```
 #view correlations
 ```{r}
+housing_clean %>% keep(is.numeric)  %>% cor() %>% round(2) %>% corrplot(method="circle")
 #housing[!complete.cases(housing),]
 #complete.cases to filter out rows containing NA's
-housing_KnnImpute[complete.cases(housing),] %>% keep(is.numeric)  %>% cor() %>% round(2) %>% corrplot(method="circle")
+housing_KnnImpute[complete.cases(housing_KnnImpute),] %>% keep(is.numeric)  %>% cor() %>% round(2) %>% corrplot(method="circle")
 ?dummyVars
 
 ```
@@ -154,5 +177,108 @@ housing.totalrooms.tab <- table(housing$total_rooms)
 housing.totalrooms.tab
 
 ```
+
+#create train and test sets
+```{r}
+train_index <- sample(1:nrow(housing_clean), 0.7 * nrow(housing_clean))
+housing_train <- housing_clean[train_index,]
+housing_test  <- housing_clean[-train_index,]
+head(housing_train)
+#nrow(train.set)+nrow(test.set)
+```
+
+#create linear regression model
+```{r}
+#linear model
+glm_model <- glm(housing_train$median_house_value ~., data = housing_train)
+glm_model$coefficients
+summary(glm_model)
+
+#predict prices for test data
+predicted_price <- predict(glm_model, housing_test[-10], type="response")
+predicted_price <- as.integer(trunc(predicted_price))
+head(predicted_price)
+
+#plot predicted and actual prices
+plot(housing_test$median_house_value,  col = "green", ylim = c(10000,500000), ylab = "Median House Prices")
+par(new=TRUE)
+#lines(predicted_price, col="red")
+plot(predicted_price, type = "o", col = "red", ylim = c(10000,500000), ylab = "Median House Prices")
+range(predicted_price)
+#confusionMatrix <- table(actual = housing_test$median_house_value, predicted = predicted_price)
+#confusionMatrix # This is the confusion matrix
+#sum(diag(confusionMatrix))/nrow(housing_test) # This is the accuracy
+
+glm_model1 <- glm(median_house_value~ households + median_income + mean_rooms + people_per_household, data = housing_clean)
+glm_model1$coefficients
+summary(glm_model1)
+
+predicted_price1 <- predict(glm_model1, housing_test, type="response")
+predicted_price1 <- as.integer(trunc(predicted_price1))
+head(predicted_price)
+
+plot(housing_test$median_house_value,  col = "green")
+par(new=TRUE)
+#lines(predicted_price, col="red")
+plot(predicted_price1, type = "l", col = "red")
+range(predicted_price)
+
+
+#random forest
+
+```
+#decision tree regression
+```{r}
+fit <- rpart(median_house_value ~., method = "anova", data = housing_train)
+printcp(fit)  # display the results 
+plotcp(fit)   # visualize cross-validation results 
+summary(fit)  # detailed summary of splits
+
+# create additional plots 
+par(mfrow=c(1,2)) # two plots on one page 
+rsq.rpart(fit) # visualize cross-validation results   
+
+# plot tree 
+plot(fit, uniform=TRUE, 
+   main="Regression Tree for House Price Prediction")
+text(fit, use.n=TRUE, all=TRUE, cex=.8)
+
+#create attractive postcript plot of tree 
+#post(fit, file = "c:/tree2.ps", 
+#  title = "Regression Tree for House Price Prediction ")
+
+#prune the tree
+pfit<- prune(fit, cp=0.012359) # from cptable   
+
+# plot the pruned tree 
+plot(pfit, uniform=TRUE, 
+   main="Pruned Regression Tree for House Price Prediction")
+text(pfit, use.n=TRUE, all=TRUE, cex=.8)
+#post(pfit, file = "c:/ptree2.ps", 
+#   title = "Pruned Regression Tree for House Price Prediction")
+```
+
+# Random Forest
+```{r}
+RF_fit <- randomForest(median_house_value ~ . ,   data=housing_train, importance = TRUE)
+
+print(RF_fit) # view results 
+importance(RF_fit) # importance of each predictor
+
+plot(RF_fit)  #Plotting the Error vs Number of Trees Graph
+names(RF_fit)
+
+pred<-predict(RF_fit,housing_test) #Predictions on Test Set for each Tree
+head(pred)
+#mean squared test error
+err = mean((housing_test$median_house_value - pred)^2)
+err
+
+RF_fit$mse
+```
+
+
+
+
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
