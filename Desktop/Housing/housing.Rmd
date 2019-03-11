@@ -158,9 +158,11 @@ plot(housing$longitude, housing$latitude, type = "p", col = "dark red")
 ```
 #view correlations
 ```{r}
+#plot of normalized data
 housing_clean %>% keep(is.numeric)  %>% cor() %>% round(2) %>% corrplot(method="circle")
 #housing[!complete.cases(housing),]
 #complete.cases to filter out rows containing NA's
+
 housing_KnnImpute[complete.cases(housing_KnnImpute),] %>% keep(is.numeric)  %>% cor() %>% round(2) %>% corrplot(method="circle")
 ?dummyVars
 
@@ -168,6 +170,7 @@ housing_KnnImpute[complete.cases(housing_KnnImpute),] %>% keep(is.numeric)  %>% 
 #Boxplots to see outliers
 ```{r}
 boxplot(housing[-9])
+boxplot(housing_clean[-10])
 boxplot.stats(housing_KnnImpute$mean_rooms)
 
 housing.oceanprox.tab <- table(housing$ocean_proximity)
@@ -223,10 +226,8 @@ par(new=TRUE)
 plot(predicted_price1, type = "l", col = "red")
 range(predicted_price)
 
-
-#random forest
-
 ```
+
 #decision tree regression
 ```{r}
 fit <- rpart(median_house_value ~., method = "anova", data = housing_train)
@@ -243,10 +244,6 @@ plot(fit, uniform=TRUE,
    main="Regression Tree for House Price Prediction")
 text(fit, use.n=TRUE, all=TRUE, cex=.8)
 
-#create attractive postcript plot of tree 
-#post(fit, file = "c:/tree2.ps", 
-#  title = "Regression Tree for House Price Prediction ")
-
 #prune the tree
 pfit<- prune(fit, cp=0.012359) # from cptable   
 
@@ -254,8 +251,17 @@ pfit<- prune(fit, cp=0.012359) # from cptable
 plot(pfit, uniform=TRUE, 
    main="Pruned Regression Tree for House Price Prediction")
 text(pfit, use.n=TRUE, all=TRUE, cex=.8)
-#post(pfit, file = "c:/ptree2.ps", 
-#   title = "Pruned Regression Tree for House Price Prediction")
+
+#predicting accuracy
+RT_pred <- predict(fit, housing_test)
+RT_pred <- as.integer(trunc(RT_pred))
+head(RT_pred)
+sum(RT_pred == housing_test[,10])
+
+df <- data.frame(predicted=RT_pred, actual = housing_test[,10])
+head(df)
+df$percent_error <- ((df$predicted-df$actual)/df$actual) *100
+mean(df$percent_error)
 ```
 
 # Random Forest
@@ -270,11 +276,12 @@ names(RF_fit)
 
 pred<-predict(RF_fit,housing_test) #Predictions on Test Set for each Tree
 head(pred)
+
 #mean squared test error
 err = mean((housing_test$median_house_value - pred)^2)
 err
 
-RF_fit$mse
+mean(RF_fit$mse)
 ```
 
 
