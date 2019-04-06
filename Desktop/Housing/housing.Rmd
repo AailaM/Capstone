@@ -18,24 +18,24 @@ When you click the **Knit** button a document will be generated that includes bo
 ```{r}
 #install.packages("ggplot2")
 library(ggplot2)
-
 #install.packages("tidyr")
 library(tidyr)
-
 #install.packages("purrr")
 library(purrr)
-
 #install.packages("corrplot")
 library(corrplot)
-
 #install.packages("DMwR")
 library(DMwR)
-
 #install.packages("rpart")
 library(rpart)
-
 #install.packages("randomForest")
 library(randomForest)
+#install.packages("glmnet")
+library(glmnet)
+#install.packages("MASS")
+library(MASS)
+#install.packages("leaps")
+library(leaps)
 ```
 
 # read data into a dataframe and view structure
@@ -45,22 +45,13 @@ library(randomForest)
 
 housing <- read.csv("housing.csv", header=TRUE, sep=",")
 
-View(housing)
+#View(housing)
 nrow(housing)
 ncol(housing)
 str(housing)
 sum(is.na(housing))
-
-housing_numeric <- housing[,0:9]
-#head(housing_numeric)
-
-#print range of each column
-#for (i in 1:ncol(housing_numeric)){
-#  r<-range(housing_numeric[i])
-#  print(r)
-#}
 summary(housing)
-
+#head(housing)
 table(housing$ocean_proximity)
 
 ```
@@ -83,8 +74,6 @@ housing_KnnImpute[na.index,]
 
 #boxplot(housing_KnnImpute[,names(housing_KnnImpute) != 'median_house_value'])
 #boxplot(housing_KnnImpute$total_rooms)
-#?knn.impute
-#?impute.knn
 ```
 
 # fix total_rooms, total_bedrooms and population columns to represent per house averages
@@ -92,15 +81,17 @@ housing_KnnImpute[na.index,]
 #rooms per household
 housing_KnnImpute$mean_rooms <- housing_KnnImpute$total_rooms / housing_KnnImpute$households
 #bedrooms per household
-housing_KnnImpute$mean_bedrooms <- housing_KnnImpute$total_bedrooms/housing_KnnImpute$total_rooms
+#housing_KnnImpute$mean_bedrooms <- housing_KnnImpute$total_bedrooms/housing_KnnImpute$total_rooms
+housing_KnnImpute$mean_bedrooms <- housing_KnnImpute$total_bedrooms/housing_KnnImpute$households
 #
+
 housing_KnnImpute$people_per_household <- housing_KnnImpute$population/housing_KnnImpute$households
 names(housing_KnnImpute)
 
 housing_KnnImpute <- subset(housing_KnnImpute, select = (-c(total_rooms,total_bedrooms,population)))
 
 ```
-#change categorical column "ocean_proximity" to factor
+#change categorical column "ocean_proximity" to numeric
 ```{r}
 is.factor(housing_KnnImpute$ocean_proximity)
 housing_KnnImpute$ocean_proximity <- as.numeric(housing_KnnImpute$ocean_proximity)
@@ -109,15 +100,60 @@ housing_KnnImpute$ocean_proximity <- as.numeric(housing_KnnImpute$ocean_proximit
 table(housing_KnnImpute$ocean_proximity)
 table(housing$ocean_proximity)
 ```
+#Boxplots to see outliers and remove some outliers
+```{r}
+#names(housing_clean)
+boxplot(housing[-9])
+
+boxplot(housing_KnnImpute[-6])
+#boxplot(housing_clean[-(9:10)])
+
+# identifying outliers in households and removing them
+housing_KnnImpute[housing_KnnImpute$households>3000,]
+housing_KnnImpute <- housing_KnnImpute[housing_KnnImpute$households<=3000,]
+nrow(housing_KnnImpute)
+boxplot(housing_KnnImpute[housing_KnnImpute$households<4000,-6])
+
+# identifying outliers in people_per_household
+names(housing_KnnImpute)
+housing_KnnImpute[housing_KnnImpute$people_per_household>20,]
+housing_KnnImpute <- housing_KnnImpute[housing_KnnImpute$people_per_household<=20,]
+#boxplot(housing_KnnImpute[housing_KnnImpute$people_per_household<=20,10])
+boxplot(housing_KnnImpute[-6])
+
+#boxplot(housing_clean[-10])
+boxplot(housing_KnnImpute$mean_rooms)
+housing_KnnImpute[housing_KnnImpute$mean_rooms>100,]
+housing_KnnImpute <- housing_KnnImpute[housing_KnnImpute$mean_rooms<100,]
+
+housing.oceanprox.tab <- table(housing$ocean_proximity)
+housing.oceanprox.tab
+
+housing.totalrooms.tab <- table(housing$total_rooms)
+housing.totalrooms.tab
+
+```
+#normalize function
+```{r}
+normalize <- function(x) {
+               return ((x - min(x)) / (max(x) - min(x))) }
+```
+
 #normalize data
 ```{r}
 names(housing_KnnImpute)
-h1 <- as.data.frame(scale(housing_KnnImpute[1:5]))
-h2 <- as.data.frame(scale(housing_KnnImpute[8:10]))
+#prc_n <- as.data.frame(lapply(prc[2:9], normalize))
+h1 <- as.data.frame(lapply(housing_KnnImpute[1:5], normalize))
+h2 <- as.data.frame(lapply(housing_KnnImpute[8:10], normalize))
 h3 <- as.data.frame(housing_KnnImpute[7:6])
+
+#h1 <- as.data.frame(scale(housing_KnnImpute[1:5]))
+#h2 <- as.data.frame(scale(housing_KnnImpute[8:10]))
 housing_clean <- cbind(h1,h2,h3)
-class(housing_clean)
+nrow(housing_clean)
 head(housing_clean)
+summary(housing_clean)
+
 ```
 
 # create histograms of numeric variables to see distribution
@@ -143,13 +179,13 @@ housing %>%
     facet_wrap(~ key, scales = "free") +
     geom_histogram()
 
-str(housing_KnnImpute$mean_bedrooms)
+summary(housing_KnnImpute$mean_bedrooms)
 #hist(housing_KnnImpute$mean_rooms, breaks = 6)
 
-pairs(housing_KnnImpute[-10])
-#for (col in 1:ncol(housing)) {
-#    hist(housing[,col])
-#}
+#pairs(housing_KnnImpute[-10])
+summary(housing_KnnImpute$mean_bedrooms)
+boxplot(housing_KnnImpute$mean_bedrooms)
+
 ```
 
 #plot latitude longitude
@@ -163,26 +199,14 @@ housing_clean %>% keep(is.numeric)  %>% cor() %>% round(2) %>% corrplot(method="
 #housing[!complete.cases(housing),]
 #complete.cases to filter out rows containing NA's
 
-housing_KnnImpute[complete.cases(housing_KnnImpute),] %>% keep(is.numeric)  %>% cor() %>% round(2) %>% corrplot(method="circle")
-?dummyVars
-
-```
-#Boxplots to see outliers
-```{r}
-boxplot(housing[-9])
-boxplot(housing_clean[-10])
-boxplot.stats(housing_KnnImpute$mean_rooms)
-
-housing.oceanprox.tab <- table(housing$ocean_proximity)
-housing.oceanprox.tab
-
-housing.totalrooms.tab <- table(housing$total_rooms)
-housing.totalrooms.tab
+housing_KnnImpute[complete.cases(housing_KnnImpute),] %>% keep(is.numeric)  %>% cor(method="pearson") %>% round(2) %>% corrplot(method="circle")
 
 ```
 
 #create train and test sets
 ```{r}
+
+set.seed(1900)
 train_index <- sample(1:nrow(housing_clean), 0.7 * nrow(housing_clean))
 housing_train <- housing_clean[train_index,]
 housing_test  <- housing_clean[-train_index,]
@@ -190,101 +214,352 @@ head(housing_train)
 #nrow(train.set)+nrow(test.set)
 ```
 
+#feature selection with cv.glmnet
+```{r}
+cvfit = cv.glmnet(as.matrix(housing_train[1:9]), as.matrix(housing_train[10]))
+plot(cvfit)
+cvfit$lambda.1se
+coef(cvfit, s = "lambda.1se")
+head(housing_test)
+glmnet_pred <- predict(cvfit, newx = as.matrix(housing_test[1:9]), s = "lambda.1se")
+glmnet_rmse <- sqrt(mean((glmnet_pred - housing_test[10]) ^ 2))
+glmnet_rmse # with lambda.min 67994.12  # with lambda.1se 68876.5
+
+
+```
 #create linear regression model
 ```{r}
-#linear model
-glm_model <- glm(housing_train$median_house_value ~., data = housing_train)
-glm_model$coefficients
-summary(glm_model)
+# backward elimination and forward selection for feature selection
+full <- lm(median_house_value~longitude+latitude+housing_median_age+households+median_income+mean_rooms+mean_bedrooms
+           +people_per_household+ocean_proximity, data = housing_train)
+null <- lm(median_house_value~1,data=housing_train)
+
+stepF <- stepAIC(null, scope=list(lower=null, upper=full), direction= "forward", trace=TRUE)
+stepF <- stepAIC(full, direction= "backward", trace=TRUE)
+
+summary(stepF)
+
+# 10-Fold cross validation
+nFolds <- 10
+folds <- cut(seq(1,nrow(housing_train)),breaks = nFolds,labels=FALSE)
+
+lm_rmse_cv<-0
+# actual cross validation
+for(k in 1:nFolds) {
+    # actual split of the data
+    fold <- which(folds == k)
+    data.train <- housing_train[-fold,]
+    data.validate <- housing_train[fold,]
+
+    # train and test your model with data.train and data.validate
+    #glm_model_cv <- glm(median_house_value ~., data = data.train)
+    glm_model_cv <- glm(median_house_value ~ longitude+ latitude+ housing_median_age+ households+ median_income+ mean_rooms
+                        + mean_bedrooms+ people_per_household, data = data.train)
+    glm_predicted_cv <- as.integer(predict(glm_model_cv, data.validate, type = "response"))
+    lm_rmse_cv[k] <- sqrt(mean((glm_predicted_cv - data.validate[10]) ^ 2))
+    
+}
+lm_rmse_cv
+sd(lm_rmse_cv)
+mean(lm_rmse_cv)  # 67958.55
+summary(glm_model_cv)
+
+# 1)  glm_model_cv <- glm(median_house_value ~., data = data.train)
+#     lm_rmse_cv        69021.67 67898.29 64874.29 69360.60 66853.60 69238.82 66655.00 67322.59 67548.46 70140.31
+#     mean(lm_rmse_cv)  67891.36  sd  1579.699
+
+# 2)  glm_model_cv <- glm(median_house_value ~ longitude+ latitude+ housing_median_age+ households+ median_income+ mean_rooms
+#                        +mean_bedrooms +people_per_household, data = data.train)
+#     lm_rmse_cv        69008.60 67876.88 64880.93 69366.84 66860.29 69237.90 66659.63 67309.50 67552.99 70132.97
+#     mean(lm_rmse_cv)  67888.65  sd 1576.19
+
+# 3)  glm_model_cv <- glm(median_house_value ~latitude+ housing_median_age+ households+ median_income + mean_bedrooms
+#                        + people_per_household, data = data.train)
+#     lm_rmse_cv        73998.62 73246.37 70371.01 74785.43 71850.61 74616.32 71215.40 72128.85 73064.92 76989.22       
+#     mean(lm_rmse_cv)  73226.68   sd 1956.155
+
+# 4)  glm_model_cv <- cv.glmnet(as.matrix(data.train[1:9]), as.matrix(data.train[10]))
+#     glm_predicted_cv <- predict(cvfit, newx = as.matrix(data.validate[1:9]), s = "lambda.1se")
+#     lm_rmse_cv        69508.85 68933.34 65990.49 70090.18 67453.44 70290.25 66783.69 68345.72 68078.18 71219.88
+#     mean(lm_rmse_cv)  68669.4 sd(lm_rmse_cv)  1652.957
+
+# 5)  glm_model_cv <- glm(log(median_house_value )~., data = data.train)
+#     glm_predicted_cv <- as.integer(exp(predict(glm_model_cv, data.validate, type = "response")))
+#       lm_rmse_cv        85200.84 93355.19 93144.25 83542.03 81278.98 91134.12 86596.71 97822.45 90225.23 91339.44
+#       mean(lm_rmse_cv)  89363.92  sd 5096.79
+# based on the above 5, the best features to select will be in model 1 or 2 (which are essentially the same in terms of rmse)
+
+#store all mean(lm_rmse_cv) in a vector
+model <- c("all_variables", "backward_elimination", "manual_selection", "glmnet_selection", "log_model" )
+model_errors <- c(67891.36, 67888.65,73226.68,68669.4,89363.92)
+model_sds <- c(1579.699, 1576.19, 1956.155, 1652.957, 5096.79 )
+models <- data.frame(model=model, model_error = model_errors, model_sd = model_sds)
+
+ggplot(models) +
+  geom_bar( aes(x=models$model, y=models$model_error), stat="identity", fill="cornflowerblue")  +
+  geom_errorbar( aes(x=models$model, ymin=models$model_error-models$model_sd, ymax=models$model_error+models$model_sd), width=0.4,   colour="orange", alpha=0.9, size=1.3) +
+ 
+  xlab("Linear Model Variations") +
+  ylab(" Validation Error")
+
 
 #predict prices for test data
-predicted_price <- predict(glm_model, housing_test[-10], type="response")
-predicted_price <- as.integer(trunc(predicted_price))
-head(predicted_price)
+predicted_price_glm <- as.integer(predict(glm_model_cv, housing_test))
+head(predicted_price_glm)
 
-#plot predicted and actual prices
-plot(housing_test$median_house_value,  col = "green", ylim = c(10000,500000), ylab = "Median House Prices")
-par(new=TRUE)
-#lines(predicted_price, col="red")
-plot(predicted_price, type = "o", col = "red", ylim = c(10000,500000), ylab = "Median House Prices")
-range(predicted_price)
-#confusionMatrix <- table(actual = housing_test$median_house_value, predicted = predicted_price)
-#confusionMatrix # This is the confusion matrix
-#sum(diag(confusionMatrix))/nrow(housing_test) # This is the accuracy
+#mean absolute percent error
+lm_df <- data.frame(predicted=predicted_price_glm, actual = housing_test[,10])
+lm_df$percent_error <- (abs((lm_df$predicted-lm_df$actual))/lm_df$actual) *100
+lm_percentMAE <- mean(lm_df$percent_error) #29.71168
+# calculate rmse
 
-glm_model1 <- glm(median_house_value~ households + median_income + mean_rooms + people_per_household, data = housing_clean)
-glm_model1$coefficients
-summary(glm_model1)
+lm_rmse <- sqrt(mean((predicted_price_glm - housing_test[,10]) ^ 2))
+lm_rmse # 67843
 
-predicted_price1 <- predict(glm_model1, housing_test, type="response")
-predicted_price1 <- as.integer(trunc(predicted_price1))
-head(predicted_price)
-
-plot(housing_test$median_house_value,  col = "green")
-par(new=TRUE)
-#lines(predicted_price, col="red")
-plot(predicted_price1, type = "l", col = "red")
-range(predicted_price)
+#plot actual vs predicted values
+lm_df %>%
+  ggplot(aes( x = 1:nrow(lm_df))) + 
+  geom_line(aes(y = housing_test[,10], color = "actual price")) + 
+  geom_line(aes(y = predicted_price_glm, color = "predicted price", alpha = 0.5)) +
+  scale_colour_manual("", 
+                      values = c("predicted price" = "green", 
+                                 "actual price" = "cornflowerblue")) +
+  xlab("index") + 
+  ylab("price") +
+  ggtitle("Predicted versus actual price by Linear Model")
 
 ```
 
 #decision tree regression
 ```{r}
-fit <- rpart(median_house_value ~., method = "anova", data = housing_train)
-printcp(fit)  # display the results 
-plotcp(fit)   # visualize cross-validation results 
-summary(fit)  # detailed summary of splits
-
-# create additional plots 
-par(mfrow=c(1,2)) # two plots on one page 
-rsq.rpart(fit) # visualize cross-validation results   
-
-# plot tree 
-plot(fit, uniform=TRUE, 
-   main="Regression Tree for House Price Prediction")
-text(fit, use.n=TRUE, all=TRUE, cex=.8)
+RT_model <- rpart(median_house_value ~., method = "anova", data = housing_train)
+printcp(RT_model)  # display the results 
+summary(RT_model_cv)  # detailed summary of splits
 
 #prune the tree
-pfit<- prune(fit, cp=0.012359) # from cptable   
+pfit<- prune(RT_model, cp=0.012359) # from cptable   
 
 # plot the pruned tree 
 plot(pfit, uniform=TRUE, 
    main="Pruned Regression Tree for House Price Prediction")
 text(pfit, use.n=TRUE, all=TRUE, cex=.8)
 
-#predicting accuracy
-RT_pred <- predict(fit, housing_test)
-RT_pred <- as.integer(trunc(RT_pred))
-head(RT_pred)
-sum(RT_pred == housing_test[,10])
 
-df <- data.frame(predicted=RT_pred, actual = housing_test[,10])
-head(df)
-df$percent_error <- ((df$predicted-df$actual)/df$actual) *100
-mean(df$percent_error)
+# 10-Fold cross validation
+nFolds <- 10
+folds <- cut(seq(1,nrow(housing_train)),breaks = nFolds,labels=FALSE)
+
+RT_rmse_cv<-0
+# actual cross validation
+for(k in 1:nFolds) {
+    # actual split of the data
+    fold <- which(folds == k)
+    data.train <- housing_train[-fold,]
+    data.validate <- housing_train[fold,]
+
+    # train and test your model with data.train and data.test
+    #RT_model_cv <- rpart(median_house_value ~., method = "anova", data = data.train)
+    RT_model_cv <- rpart(median_house_value ~., method="anova", data=data.train, control=rpart.control(minsplit=1000, cp=0.0001))
+    #RT_model_cv<- prune(RT_model_cv, cp=0.0108) # from cptable   
+    RT_predicted_cv <- as.integer(predict(RT_model_cv, data.validate))
+    RT_rmse_cv[k] <- sqrt(mean((RT_predicted_cv - data.validate[10]) ^ 2))
+}
+RT_rmse_cv
+sd(RT_rmse_cv)
+mean(RT_rmse_cv)  
+
+# 1)  RT_model_cv <- rpart(median_house_value ~., method = "anova", data = data.train)
+#     RT_rmse_cv        76033.92 75076.82 74028.80 75813.83 75049.23 76627.96 73461.03 77117.24 73604.20 75803.86
+#     mean(RT_rmse_cv)  75261.69  sd(RT_rmse_cv) 1251.394
+
+# 2)  RT_model_cv <- rpart(median_house_value ~., method = "anova", data = data.train)
+#     RT_model_cv<- prune(RT_model_cv, cp=0.010800) # from cptable (second last value)  
+#     RT_rmse_cv        77321.84 75076.82 75230.79 75813.83 75049.23 79293.18 73461.03 77117.24 73604.20 75803.86
+#     mean(RT_rmse_cv)  75777.2 sd(RT_rmse_cv) 1762.301
+
+# 3)  RT_model_cv <- rpart(median_house_value ~.,method="anova", data=data.train, control=rpart.control(minsplit=1000, cp=0.001))
+#     RT_rmse_cv        73076.45 71491.72 70560.17 71858.08 70193.64 73189.90 69070.23 72567.37 69883.61 71473.91
+#     mean(RT_rmse_cv)  71336.51  sd(RT_rmse_cv) 1392.371
+
+# 4)  RT_model_cv <- rpart(median_house_value ~.,method="anova", data=data.train,control=rpart.control(minsplit=1000, cp=0.0001))
+#     RT_rmse_cv        72973.70 71443.45 70485.59 71858.89 70175.93 73143.97 68951.85 72531.88 69764.97 71387.86
+#     mean(RT_rmse_cv)  71271.81  sd(RT_rmse_cv) 1408.255
+
+# 5)  RT_model_cv <- rpart(median_house_value ~.,method="anova",data=data.train, control=rpart.control(minsplit=1500, cp=0.0001))
+#     RT_model_cv<- prune(RT_model_cv, cp=0.001) # from cptable   
+#     RT_rmse_cv        75669.35 75260.54 74764.01 75501.02 73029.59 76966.94 72445.64 75057.90 72072.84 74242.85
+#     mean(RT_rmse_cv)  74501.07    sd(RT_rmse_cv) = 1554.718
+# best model = model 4
+
+# plot tree 
+plot(RT_model_cv, uniform=TRUE, 
+   main="Regression Tree for House Price Prediction")
+text(RT_model_cv, use.n=TRUE, all=TRUE, cex=.8)
+
+
+#visualize validation errors
+model <- c("simple_RegTree", "RegTree_with_pruning", "control_parameters1", "control_parameters2", "control param+pruning" )
+model_errors <- c(75261.69, 75777.2, 71336.51, 71271.81, 74501.07)
+model_sds <- c(1251.394, 1762.301, 1392.371, 1408.255,1554.718 )
+models <- data.frame(model=model, model_error = model_errors, model_sd = model_sds)
+
+ggplot(models) +
+  geom_bar( aes(x=models$model, y=models$model_error), stat="identity", fill="cornflowerblue")  +
+  geom_errorbar( aes(x=models$model, ymin=models$model_error-models$model_sd, ymax=models$model_error+models$model_sd), width=0.4,   colour="orange", alpha=0.9, size=1.3) +
+  xlab("Regression Tree Model Variations") +
+  ylab(" Validation Error")
+
+
+#choosing final model as no.4 and running on test data
+RT_pred <- as.integer(predict(RT_model_cv, housing_test))
+
+#calculate mean absolute percent error
+RT_df <- data.frame(predicted=RT_pred, actual = housing_test[,10])
+RT_df$percent_error <- (abs((RT_df$predicted-RT_df$actual))/RT_df$actual) *100
+RT_percentMAE <- mean(RT_df$percent_error) #29.78895
+# calculate rmse
+RT_rmse <- sqrt(mean((RT_pred - housing_test[,10]) ^ 2))
+RT_rmse  #   72779  
+
+  
+RT_df %>%
+  ggplot(aes( x = 1:nrow(RT_df))) + 
+  geom_line(aes(y = housing_test[,10], color = "actual price")) + 
+  geom_line(aes(y = RT_pred, color = "predicted price",alpha = 0.1)) +
+  scale_colour_manual("", 
+                      values = c("predicted price" = "green", 
+                                 "actual price" = "cornflowerblue")) +
+  xlab("index") + 
+  ylab("price") +
+  ggtitle("Predicted versus actual price by Regression Tree")
+
+range(RT_pred)
 ```
 
 # Random Forest
 ```{r}
-RF_fit <- randomForest(median_house_value ~ . ,   data=housing_train, importance = TRUE)
+RF_model <- randomForest(median_house_value~., data=housing_train, ntree=400, mtry=3, replace = FALSE, importance = TRUE)
+RF_rmse <-sqrt(mean(RF_model$mse))
+RF_rmse   
 
-print(RF_fit) # view results 
-importance(RF_fit) # importance of each predictor
 
-plot(RF_fit)  #Plotting the Error vs Number of Trees Graph
-names(RF_fit)
+plot(RF_model)  #Plotting the Error vs Number of Trees Graph
+names(RF_model)
 
-pred<-predict(RF_fit,housing_test) #Predictions on Test Set for each Tree
-head(pred)
+# 10-Fold cross validation
+nFolds <- 10
+folds <- cut(seq(1,nrow(housing_train)),breaks = nFolds,labels=FALSE)
 
-#mean squared test error
-err = mean((housing_test$median_house_value - pred)^2)
-err
+RF_rmse_cv<-0
+# actual cross validation
+for(k in 1:nFolds) {
+    # actual split of the data
+    fold <- which(folds == k)
+    data.train <- housing_train[-fold,]
+    data.validate <- housing_train[fold,]
 
-mean(RF_fit$mse)
+    # train and test your model with data.train and data.test
+    RF_model_cv <- randomForest(median_house_value ~., data = data.train, importance = TRUE)
+    RF_predicted_cv <- as.integer( predict( RF_model_cv, data.validate ) )
+    RF_rmse_cv[k] <- sqrt( mean((RF_predicted_cv - data.validate[10] ) ^ 2))
+    
+}
+#here run it on the entire training data and find best hyperparameters
+RF_rmse_cv
+mean(RF_rmse_cv)  # after removing outliers 62175.97
+sd(RF_rmse_cv)
+
+RF_rmse <-sqrt(mean(RF_model_cv$mse))
+RF_rmse
+# 1)  RF_model_cv <- randomForest(median_house_value ~., data = data.train, importance = TRUE)
+#     RF_rmse_cv        49049.57 47616.64 45762.23 50275.93 48204.35 48610.07 45433.90 49087.81 46901.28 48877.89     
+#     mean(RF_rmse_cv)   47853.36, sd 1499.894
+
+# 2)  RF_model_cv <- randomForest(median_house_value ~., ntree=300, data = data.train, importance = TRUE)
+#     RF_rmse_cv        47536.41 49403.25 48970.47 46553.30 47938.37 48452.23 45766.04 50750.97 48754.52 48847.56
+#     mean(RF_rmse_cv)  47864.71, sd 1462.847
+
+# 3)  RF_model_cv <- randomForest(median_house_value ~., ntree=300, mtry=5, data = data.train, importance = TRUE)
+#     RF_rmse_cv        48716.79 49836.00 50127.61 47063.22 48441.49 49030.67 46743.68 52186.09 48951.68 50147.04
+#     mean(RF_rmse_cv)  48793.46, sd 1599.865
+
+# 4) RF_model_cv <- randomForest(median_house_value ~., ntree=400, mtry=4, data = data.train, importance = TRUE)
+#     RF_rmse_cv        47817.18 49507.96 49608.23 46703.76 47973.08 48627.28 46005.19 51631.89 48831.04 49329.18
+#     mean(RF_rmse_cv)  48292.72, sd 1548.25
+
+# 5) RF_model_cv <- randomForest(median_house_value ~., ntree=800, mtry=3, data = data.train, importance = TRUE)
+#     RF_rmse_cv        48884.52 47703.81 45675.06 50076.40 48058.09 48656.23 45471.24 49176.34 46974.78 48765.49
+#     mean(RF_rmse_cv)  47944.2, sd 1505.738
+
+# 6) RF_model_cv <- randomForest(median_house_value ~., ntree=600, mtry=3, data = data.train, importance = TRUE)
+#     RF_rmse_cv        47314.23 49312.73 49235.59 46165.61 47831.66 48339.17 45489.15 51120.01 48563.39 48897.79
+#     mean(RF_rmse_cv)  48226.93
+
+#visualize validation errors with error bars
+model <- c("default_RF", "ntree=300", "ntree=300,mtry=5", "ntree=400,mtry=4", "ntree=800,mtry=3" )
+model_errors <- c(47853, 47864.71, 48793, 48292, 47944)
+model_sds <- c(1499.894, 1462.847,1599.865, 1548.25, 1505.738  )
+models <- data.frame(model=model, model_error = model_errors, model_sd = model_sds)
+
+ggplot(models) +
+  geom_bar( aes(x=models$model, y=models$model_error), stat="identity", fill="cornflowerblue")  +
+  geom_errorbar( aes(x=models$model, ymin=models$model_error-models$model_sd, ymax=models$model_error+models$model_sd), width=0.4, colour="orange", alpha=0.9, size=1.3) +
+ 
+  xlab("Random Forest Model Variations") +
+  ylab(" Validation Error")
+
+print(RF_model_cv) # view results 
+importance(RF_model_cv) # importance of each predictor
+varImpPlot(RF_model_cv)
+
+#Predictions on Test Set for each Tree
+RF_pred<-as.integer(predict(RF_model_cv,housing_test)) 
+
+#Make data frame of actual and predicted values and calculate percentage error
+RF_df <- data.frame(predicted=RF_pred, actual = housing_test[,10])
+RF_df$percent_error <- (abs(RF_df$predicted-RF_df$actual)/RF_df$actual) *100
+RF_percentMAE <-mean(RF_df$percent_error) #18.21686
+
+#root mean squared test error
+RF_rmse = sqrt(mean((housing_test$median_house_value - RF_pred)^2))
+RF_rmse # 48584.76
+
+#plot actual vs predicted values
+RF_df %>%
+  ggplot(aes( x = 1:nrow(RF_df))) + 
+  geom_line(aes(y = RF_df$actual, color = "actual price")) + 
+  geom_line(aes(y = RF_df$predicted, color = "predicted price",alpha = 0.9)) +
+  scale_colour_manual("", 
+                      values = c("predicted price" = "green", 
+                                 "actual price" = "cornflowerblue")) +
+  xlab("index") + 
+  ylab("price") +
+  ggtitle("Predicted versus actual price by Random Forest")
 ```
 
 
+#compare rmse from all the models
+```{r}
+titles <- c("Linear Model", "Regression Tree", "Random Forest")
+errors <- c(lm_rmse,RT_rmse,RF_rmse)
+percent_mae <- c(lm_percentMAE, RT_percentMAE, RF_percentMAE)
+rmse_df <- data.frame(title = titles, rmse = errors, percentMAE = percent_mae)
+rmse_df
+
+ggplot(rmse_df) +
+  geom_bar( aes(x=rmse_df$title, y=rmse_df$rmse), stat="identity", fill="cornflowerblue")  +
+  xlab("Model") + 
+  ylab("RMSE") +
+  ggtitle("RMSE Comparison")
+
+ggplot(rmse_df) +
+  geom_bar( aes(x=rmse_df$title, y=rmse_df$percentMAE), stat="identity", fill="cornflowerblue") +
+  xlab("Model") + 
+  ylab("% MAE") +
+  ggtitle("% MAE Comparison")
+
+
+```
 
 
 
